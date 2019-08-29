@@ -1,0 +1,367 @@
+#include "S6D0154X.h"
+
+S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin)
+{
+    this->_cs_pin = cs_pin;
+	this->_reset_pin = reset_pin;
+}
+
+void S6D0154X::init(void)
+{
+	_spiSettings = new SPISettings(8000000, MSBFIRST, SPI_MODE0);
+	SPI.begin();
+
+    pinMode(_cs_pin, OUTPUT);
+    digitalWrite(_cs_pin, HIGH);
+	pinMode(_reset_pin, OUTPUT);
+    digitalWrite(_reset_pin, HIGH);
+	delay(5);
+	digitalWrite(_reset_pin, LOW);
+    delay(5);
+    digitalWrite(_reset_pin, HIGH);
+
+	SPI.beginTransaction(*_spiSettings);
+	writeRegister16(0x11, 0x001A);
+	writeRegister16(0x12, 0x3121);
+	writeRegister16(0x13, 0x006C);
+	writeRegister16(0x14, 0x4249);
+
+	writeRegister16(0x10, 0x0800);
+	delay(10);
+	writeRegister16(0x11, 0x011A);
+	delay(10);
+	writeRegister16(0x11, 0x031A);
+	delay(10);
+	writeRegister16(0x11, 0x071A);
+	delay(10);
+	writeRegister16(0x11, 0x0F1A);
+	delay(20);
+	writeRegister16(0x11, 0x0F3A);
+	delay(30);
+
+	writeRegister16(0x01, 0x0128);
+	writeRegister16(0x02, 0x0100);
+	writeRegister16(0x03, 0x1030);
+	writeRegister16(0x07, 0x1012);
+	writeRegister16(0x08, 0x0303);
+	writeRegister16(0x0B, 0x1100);
+	writeRegister16(0x0C, 0x0000);
+	writeRegister16(0x0F, 0x1801);
+	writeRegister16(0x15, 0x0020);
+
+  	writeRegister16(0x0050, 0x0101); 
+	writeRegister16(0x0051, 0x0903); 
+	writeRegister16(0x0052, 0x0e0e); 
+	writeRegister16(0x0053, 0x0001); 
+	writeRegister16(0x0054, 0x0200); 
+	writeRegister16(0x0055, 0x0809); 
+	writeRegister16(0x0056, 0x0e0e); 
+	writeRegister16(0x0057, 0x0100); 
+	writeRegister16(0x0058, 0x0606); 
+	writeRegister16(0x0059, 0x0100);
+	writeRegister16(0x000F, 0x1e01);
+	
+	writeRegister16(0x07,0x0012);
+	delay(40);
+
+	writeRegister16(0x07,0x0013);/*  GRAM Address Set */
+	writeRegister16(0x07,0x0017);/*  Display Control  DISPLAY ON */
+   	SPI.endTransaction();
+
+   	setRotation(0);
+}
+
+void S6D0154X::setRotation(uint8_t x)
+{
+	_rotation = x;
+  	digitalWrite(_cs_pin, LOW);
+ 
+    uint16_t t;
+    switch(_rotation) 
+	{
+		case 1 : 
+			t = 0x1028; 
+			_width = TFTHEIGHT;
+			_height = TFTWIDTH;
+			break;
+		case 2 : 
+			t = 0x1000; 
+			_width = TFTWIDTH;
+			_height = TFTHEIGHT;
+			break;
+		case 3 : 
+			t = 0x1018; 
+			_width = TFTHEIGHT;
+			_height = TFTWIDTH;
+			break;
+		default: 
+			t = 0x1030; 
+			break;
+    }
+	
+	SPI.beginTransaction(*_spiSettings);
+	writeRegister16(0x0003, t); // MADCTL
+	SPI.endTransaction();
+	setAddrWindow(0, 0, _width - 1, _height - 1);
+}
+
+void S6D0154X::setAddrWindow(int16_t x1, int16_t y1, int16_t x2, int16_t y2)
+{
+  	digitalWrite(_cs_pin, LOW);
+    // Values passed are in current (possibly rotated) coordinate
+    // system.  932X requires hardware-native coords regardless of
+    // MADCTL, so rotate inputs as needed.  The address counter is
+    // set to the top-left corner -- although fill operations can be
+    // done in any direction, the current screen rotation is applied
+    // because some users find it disconcerting when a fill does not
+    // occur top-to-bottom.
+    int x, y, t;
+    switch(_rotation) {
+     default:
+      x  = x1;
+      y  = y1;
+      break;
+     case 1:
+      t  = y1;
+      y1 = x1;
+      x1 = TFTWIDTH  - 1 - y2;
+      y2 = x2;
+      x2 = TFTWIDTH  - 1 - t;
+      x  = x2;
+      y  = y1;
+      break;
+     case 2:
+      t  = x1;
+      x1 = TFTWIDTH  - 1 - x2;
+      x2 = TFTWIDTH  - 1 - t;
+      t  = y1;
+      y1 = TFTHEIGHT - 1 - y2;
+      y2 = TFTHEIGHT - 1 - t;
+      x  = x2;
+      y  = y2;
+      break;
+     case 3:
+      t  = x1;
+      x1 = y1;
+      y1 = TFTHEIGHT - 1 - x2;
+      x2 = y2;
+      y2 = TFTHEIGHT - 1 - t;
+      x  = x1;
+      y  = y2;
+      break;
+    }
+	
+	SPI.beginTransaction(*_spiSettings);
+	writeRegister16(0x37, x1); //HorizontalStartAddress
+	writeRegister16(0x36, x2); //HorizontalEndAddress
+	writeRegister16(0x39, y1); //VerticalStartAddress
+	writeRegister16(0x38, y2); //VertocalEndAddress
+	writeRegister16(0x20, x); //GRAM Address Set
+	writeRegister16(0x21, y);
+	writeRegister16(0x22, 0);
+	SPI.endTransaction();
+  
+	digitalWrite(_cs_pin, HIGH);
+}
+
+void S6D0154X::drawPixel(int16_t x, int16_t y, uint16_t color)
+{
+	// Clip
+  	if((x < 0) || (y < 0) || (x >= _width) || (y >= _height)) return;
+
+	//digitalWrite(_cs_pin, LOW);
+
+    int16_t t;
+	switch(_rotation) 
+	{
+		case 1:
+			t = x;
+			x = TFTWIDTH  - 1 - y;
+			y = t;
+			break;
+		case 2:
+			x = TFTWIDTH  - 1 - x;
+			y = TFTHEIGHT - 1 - y;
+			break;
+		case 3:
+			t = x;
+			x = y;
+			y = TFTHEIGHT - 1 - t;
+		break;
+	}
+	
+	//SPI.beginTransaction(*_spiSettings);
+    writeRegister16(0x0020, x);
+    writeRegister16(0x0021, y);
+    writeRegister16(0x0022, color);
+	//SPI.endTransaction();
+
+	//digitalWrite(_cs_pin, HIGH);
+}
+
+void S6D0154X::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
+{
+  int16_t x2;
+
+  // Initial off-screen clipping
+  if((w <= 0     ) ||
+     (y      <  0     ) || ( y                  >= _height) ||
+     (x      >= _width) || ((x2 = (x+w-1)) <  0      )) return;
+
+  if(x < 0) {        // Clip left
+    w += x;
+    x       = 0;
+  }
+  if(x2 >= _width) { // Clip right
+    x2      = _width - 1;
+    w  = x2 - x + 1;
+  }
+
+  setAddrWindow(x, y, x2, y);
+  flood(color, w);
+}
+
+void S6D0154X::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+{
+	int16_t y2;
+
+  // Initial off-screen clipping
+  if((h <= 0      ) ||
+     (x      <  0      ) || ( x                  >= _width) ||
+     (y      >= _height) || ((y2 = (y+h-1)) <  0     )) return;
+  if(y < 0) {         // Clip top
+    h += y;
+    y       = 0;
+  }
+  if(y2 >= _height) { // Clip bottom
+    y2      = _height - 1;
+    h  = y2 - y + 1;
+  }
+
+  setAddrWindow(x, y, x, y2);
+  flood(color, h);
+}
+
+void S6D0154X::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c)
+{
+	setAddrWindow(x, y, w - 1, h - 1);
+	flood(c, (long)w * (long)h);
+}
+
+void S6D0154X::fillScreen(uint16_t color)
+{
+	setAddrWindow(0, 0, _width - 1, _height - 1);
+	flood(color, (long)_width * (long)_height);
+}
+
+void S6D0154X::flood(uint16_t color, uint32_t len)
+{
+	SPI.beginTransaction(*_spiSettings);
+	SPI_WriteComm(0x0022);
+    digitalWrite(_cs_pin, LOW);
+    SPI.transfer(0x72);
+    for (uint32_t i = 0; i < len; i++)
+    {
+        SPI.transfer16(color);
+    }
+    digitalWrite(_cs_pin, HIGH);
+	SPI.endTransaction();
+}
+
+
+void S6D0154X::writeRegister16(uint16_t command,uint16_t data)
+{
+	SPI_WriteComm(command);
+	SPI_WriteData(data);
+}
+
+void S6D0154X::SPI_WriteComm(uint16_t command)
+{			
+	digitalWrite(_cs_pin, LOW);
+	SPI.transfer(0x70);
+	SPI.transfer(command>>8);
+	SPI.transfer(command);
+	digitalWrite(_cs_pin, HIGH);
+}
+
+void S6D0154X::SPI_WriteData(uint16_t data)
+{			
+	digitalWrite(_cs_pin, LOW);
+	SPI.transfer(0x72);
+	SPI.transfer(data>>8);
+	SPI.transfer(data);
+	digitalWrite(_cs_pin, HIGH);
+}
+
+// Bresenham's algorithm - thx wikpedia
+void S6D0154X::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+{
+int16_t steep = abs(y1 - y0) > abs(x1 - x0);
+  if (steep) {
+    swap(x0, y0);
+    swap(x1, y1);
+  }
+
+  if (x0 > x1) {
+    swap(x0, x1);
+    swap(y0, y1);
+  }
+
+  int16_t dx, dy;
+  dx = x1 - x0;
+  dy = abs(y1 - y0);
+
+  int16_t err = dx / 2;
+  int16_t ystep;
+
+  if (y0 < y1) {
+    ystep = 1;
+  } else {
+    ystep = -1;
+  }
+
+  for (; x0<=x1; x0++) {
+    if (steep) {
+      drawPixel(y0, x0, color);
+    } else {
+      drawPixel(x0, y0, color);
+    }
+    err -= dy;
+    if (err < 0) {
+      y0 += ystep;
+      err += dx;
+    }
+  }
+}
+
+void S6D0154X::drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+{
+	drawFastHLine(x, y, w, color);
+	drawFastHLine(x, y+h-1, w, color);
+	drawFastVLine(x, y, h, color);
+	drawFastVLine(x+w-1, y, h, color);
+}
+
+void S6D0154X::setCursor(int16_t x, int16_t y)
+{
+	_cursor_x = x;
+	_cursor_y = y;
+}
+
+void S6D0154X::setTextColor(uint16_t c)
+{
+	_textcolor = c;
+}
+
+void S6D0154X::setTextColor(uint16_t c, uint16_t bg)
+{
+	_textcolor = c;
+	_textbgcolor = bg;
+}
+
+void S6D0154X::drawChar(int16_t x, int16_t y, unsigned char c, 
+	uint16_t color, uint16_t bg, uint8_t size)
+{
+	
+}
+
