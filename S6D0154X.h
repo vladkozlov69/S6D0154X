@@ -2,6 +2,7 @@
 #define S6D0154X_H_
 
 #include <Arduino.h>
+#include <Print.h>
 #include <SPI.h>
 
 #define   BLACK                0x0000                // 黑色：    0,   0,   0 //
@@ -38,6 +39,7 @@ private:
     int16_t _cursor_x, _cursor_y;
     uint16_t _textcolor, _textbgcolor;
     uint8_t _textsize;
+    boolean _wrap;
     void writeRegister16(uint16_t command, uint16_t data);
 public:
     S6D0154X(uint8_t cs_pin, uint8_t reset_pin);
@@ -55,8 +57,9 @@ public:
     void setCursor(int16_t x, int16_t y);
     void setTextColor(uint16_t c);
     void setTextColor(uint16_t c, uint16_t bg);
+    void setTextSize(uint8_t s);
     void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size);
-
+    virtual size_t write(uint8_t);
     void flood(uint16_t color, uint32_t len);
     void SPI_WriteComm(uint16_t CMD);
     void SPI_WriteData(uint16_t tem_data);

@@ -1,9 +1,21 @@
 #include "S6D0154X.h"
+#include "Adafruit_GFX.h"
+#include "glcdfont.c"
+#ifdef __AVR__
+ #include <avr/pgmspace.h>
+#else
+ #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
+#endif
 
 S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin)
 {
     this->_cs_pin = cs_pin;
 	this->_reset_pin = reset_pin;
+	_rotation  = 0;
+  	_cursor_y  = _cursor_x    = 0;
+  	_textsize  = 1;
+  	_textcolor = _textbgcolor = 0xFFFF;
+  	_wrap      = true;
 }
 
 void S6D0154X::init(void)
@@ -244,7 +256,7 @@ void S6D0154X::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 
 void S6D0154X::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c)
 {
-	setAddrWindow(x, y, w - 1, h - 1);
+	setAddrWindow(x, y, x + w - 1, y + h - 1);
 	flood(c, (long)w * (long)h);
 }
 
@@ -338,7 +350,7 @@ void S6D0154X::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t
 		}
 
 		err -= dy;
-		
+
 		if (err < 0) 
 		{
 			y0 += ystep;
@@ -372,9 +384,66 @@ void S6D0154X::setTextColor(uint16_t c, uint16_t bg)
 	_textbgcolor = bg;
 }
 
+void S6D0154X::setTextSize(uint8_t s)
+{
+	_textsize = s;
+}
+
 void S6D0154X::drawChar(int16_t x, int16_t y, unsigned char c, 
 	uint16_t color, uint16_t bg, uint8_t size)
 {
-	
+	if((x >= _width)            || // Clip right
+     (y >= _height)           || // Clip bottom
+     ((x + 6 * size - 1) < 0) || // Clip left
+     ((y + 8 * size - 1) < 0))   // Clip top
+    return;
+
+  for (int8_t i=0; i<6; i++ ) {
+    uint8_t line;
+    if (i == 5) 
+      line = 0x0;
+    else 
+      line = pgm_read_byte(font+(c*5)+i);
+    for (int8_t j = 0; j<8; j++) {
+      if (line & 0x1) {
+        if (size == 1) // default size
+          drawPixel(x+i, y+j, color);
+        else {  // big size
+			
+          fillRect(x+(i*size), y+(j*size), size, size, color);
+		  //drawRect(x+(i*size), y+(j*size), size, size, color);
+        } 
+      } else if (bg != color) {
+        if (size == 1) // default size
+          drawPixel(x+i, y+j, bg);
+        else {  // big size
+		
+          fillRect(x+i*size, y+j*size, size, size, bg);
+		  //drawRect(x+i*size, y+j*size, size, size, bg);
+        }
+      }
+      line >>= 1;
+    }
+  }
+
+}
+
+size_t S6D0154X::write(uint8_t c) 
+{
+  if (c == '\n') {
+    _cursor_y += _textsize*8;
+    _cursor_x  = 0;
+  } else if (c == '\r') {
+    // skip em
+  } else {
+    drawChar(_cursor_x, _cursor_y, c, _textcolor, _textbgcolor, _textsize);
+    _cursor_x += _textsize*6;
+    if (_wrap && (_cursor_x > (_width - _textsize*6))) {
+      _cursor_y += _textsize*8;
+      _cursor_x = 0;
+    }
+  }
+
+  return 1;
 }
 
