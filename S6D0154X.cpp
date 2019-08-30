@@ -239,13 +239,14 @@ void S6D0154X::fillScreen(uint16_t color)
 
 void S6D0154X::flood(uint16_t color, uint32_t len)
 {
+	uint16_t internalColor = ~color;
 	SPI.beginTransaction(*_spiSettings);
 	SPI_WriteComm(0x0022);
     digitalWrite(_cs_pin, LOW);
     SPI.transfer(0x72);
     for (uint32_t i = 0; i < len; i++)
     {
-        SPI.transfer16(color);
+        SPI.transfer16(internalColor);
     }
     digitalWrite(_cs_pin, HIGH);
 	SPI.endTransaction();
@@ -262,8 +263,9 @@ void S6D0154X::SPI_WriteComm(uint16_t command)
 {			
 	digitalWrite(_cs_pin, LOW);
 	SPI.transfer(0x70);
-	SPI.transfer(command>>8);
-	SPI.transfer(command);
+	SPI.transfer16(command);
+	// SPI.transfer(command>>8);
+	// SPI.transfer(command);
 	digitalWrite(_cs_pin, HIGH);
 }
 
@@ -271,8 +273,9 @@ void S6D0154X::SPI_WriteData(uint16_t data)
 {			
 	digitalWrite(_cs_pin, LOW);
 	SPI.transfer(0x72);
-	SPI.transfer(data>>8);
-	SPI.transfer(data);
+	SPI.transfer16(data);
+	// SPI.transfer(data>>8);
+	// SPI.transfer(data);
 	digitalWrite(_cs_pin, HIGH);
 }
 
@@ -321,6 +324,6 @@ void S6D0154X::drawPixelInternal(int16_t x, int16_t y, uint16_t color)
 	
     writeRegister16(0x0020, x);
     writeRegister16(0x0021, y);
-    writeRegister16(0x0022, color);
+    writeRegister16(0x0022, ~color);
 }
 

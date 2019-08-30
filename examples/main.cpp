@@ -47,11 +47,11 @@ void loop()
 unsigned long testFillScreen() 
 {
     unsigned long start = micros();
-    tft.fillScreen(~BLACK);
-    tft.fillScreen(~RED);
-    tft.fillScreen(~GREEN);
-    tft.fillScreen(~BLUE);
-    tft.fillScreen(~BLACK);
+    tft.fillScreen(BLACK);
+    tft.fillScreen(RED);
+    tft.fillScreen(GREEN);
+    tft.fillScreen(BLUE);
+    tft.fillScreen(BLACK);
     return micros() - start;
 }
 
@@ -60,7 +60,7 @@ unsigned long testFastLines()
     unsigned long start;
     int           x, y, w = tft.width(), h = tft.height();
 
-    tft.fillScreen(~BLACK);
+    tft.fillScreen(BLACK);
     start = micros();
     for(y=0; y<h; y+=5) tft.drawFastHLine(0, y, w, random(0xFFFF));
     for(x=0; x<w; x+=5) tft.drawFastVLine(x, 0, h, random(0xFFFF));
@@ -75,7 +75,7 @@ unsigned long testLines()
                 w = tft.width(),
                 h = tft.height();
 
-  tft.fillScreen(~BLACK);
+  tft.fillScreen(BLACK);
 
   x1 = y1 = 0;
   y2    = h - 1;
@@ -85,7 +85,7 @@ unsigned long testLines()
   for(y2=0; y2<h; y2+=6) tft.drawLine(x1, y1, x2, y2, random(0xFFFF));
   t     = micros() - start; // fillScreen doesn't count against timing
 
-  tft.fillScreen(~BLACK);
+  tft.fillScreen(BLACK);
 
   x1    = w - 1;
   y1    = 0;
@@ -96,7 +96,7 @@ unsigned long testLines()
   for(y2=0; y2<h; y2+=6) tft.drawLine(x1, y1, x2, y2, random(0xFFFF));
   t    += micros() - start;
 
-  tft.fillScreen(~BLACK);
+  tft.fillScreen(BLACK);
 
   x1    = 0;
   y1    = h - 1;
@@ -107,7 +107,7 @@ unsigned long testLines()
   for(y2=0; y2<h; y2+=6) tft.drawLine(x1, y1, x2, y2, random(0xFFFF));
   t    += micros() - start;
 
-  tft.fillScreen(~BLACK);
+  tft.fillScreen(BLACK);
 
   x1    = w - 1;
   y1    = h - 1;
@@ -124,7 +124,7 @@ unsigned long testFilledRects()
 {
     unsigned long start;
 
-    tft.fillScreen(~BLACK);
+    tft.fillScreen(BLACK);
 
     start = micros();
 
@@ -142,7 +142,7 @@ unsigned long testRects()
 {
     unsigned long start;
 
-    tft.fillScreen(~BLACK);
+    tft.fillScreen(BLACK);
 
     start = micros();
 
@@ -150,7 +150,7 @@ unsigned long testRects()
     {
         int x = random(tft.width() - 50);
         int y = random(tft.height() - 50);
-        tft.drawRect(x, y, x+50, y+50, random(0xFFFF));
+        tft.drawRect(x, y, 50, 50, random(0xFFFF));
     }
 
     return micros() - start;
@@ -160,7 +160,7 @@ unsigned long testPixels()
 {
     unsigned long start;
 
-    tft.fillScreen(~BLACK);
+    tft.fillScreen(BLACK);
 
     start = micros();
 
@@ -178,24 +178,24 @@ unsigned long testPixels()
 
 unsigned long testText() 
 {
-    tft.fillScreen(~ BLACK);
+    tft.fillScreen(BLACK);
     unsigned long start = micros();
     tft.setCursor(0, 0);
     
-    tft.setTextColor(~ WHITE, ~ BLACK);  
+    tft.setTextColor(WHITE, BLACK);  
     tft.setTextSize(1);
     tft.println("Hello World!");
     
-    tft.setTextColor(~ YELLOW); 
+    tft.setTextColor(YELLOW); 
     tft.setTextSize(2);
     tft.println(1234.56);
     
-    tft.setTextColor(~ RED);    
+    tft.setTextColor(RED);    
     tft.setTextSize(3);
     tft.println(0xDEADBEEF, HEX);
     tft.println();
 
-    tft.setTextColor(~ GREEN);
+    tft.setTextColor(GREEN);
     tft.setTextSize(5);
     tft.println("Groop");
 
