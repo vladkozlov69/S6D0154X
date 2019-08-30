@@ -40,7 +40,11 @@ private:
     uint16_t _textcolor, _textbgcolor;
     uint8_t _textsize;
     boolean _wrap;
+    boolean _inTransaction;
     void writeRegister16(uint16_t command, uint16_t data);
+    void beginUpdate();
+    void endUpdate();
+    void drawPixelInternal(int16_t x, int16_t y, uint16_t color);
 public:
     S6D0154X(uint8_t cs_pin, uint8_t reset_pin);
     void init(void);

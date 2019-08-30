@@ -16,6 +16,7 @@ S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin)
   	_textsize  = 1;
   	_textcolor = _textbgcolor = 0xFFFF;
   	_wrap      = true;
+	_inTransaction = false;
 }
 
 void S6D0154X::init(void)
@@ -163,7 +164,7 @@ void S6D0154X::setAddrWindow(int16_t x1, int16_t y1, int16_t x2, int16_t y2)
       break;
     }
 	
-	SPI.beginTransaction(*_spiSettings);
+	beginUpdate();
 	writeRegister16(0x37, x1); //HorizontalStartAddress
 	writeRegister16(0x36, x2); //HorizontalEndAddress
 	writeRegister16(0x39, y1); //VerticalStartAddress
@@ -171,44 +172,16 @@ void S6D0154X::setAddrWindow(int16_t x1, int16_t y1, int16_t x2, int16_t y2)
 	writeRegister16(0x20, x); //GRAM Address Set
 	writeRegister16(0x21, y);
 	writeRegister16(0x22, 0);
-	SPI.endTransaction();
+	endUpdate();
   
 	digitalWrite(_cs_pin, HIGH);
 }
 
 void S6D0154X::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
-	// Clip
-  	if((x < 0) || (y < 0) || (x >= _width) || (y >= _height)) return;
-
-	//digitalWrite(_cs_pin, LOW);
-
-    int16_t t;
-	switch(_rotation) 
-	{
-		case 1:
-			t = x;
-			x = TFTWIDTH  - 1 - y;
-			y = t;
-			break;
-		case 2:
-			x = TFTWIDTH  - 1 - x;
-			y = TFTHEIGHT - 1 - y;
-			break;
-		case 3:
-			t = x;
-			x = y;
-			y = TFTHEIGHT - 1 - t;
-		break;
-	}
-	
-	//SPI.beginTransaction(*_spiSettings);
-    writeRegister16(0x0020, x);
-    writeRegister16(0x0021, y);
-    writeRegister16(0x0022, color);
-	//SPI.endTransaction();
-
-	//digitalWrite(_cs_pin, HIGH);
+	beginUpdate();
+	drawPixelInternal(x, y, color);
+	endUpdate();
 }
 
 void S6D0154X::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
@@ -342,11 +315,11 @@ void S6D0154X::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t
 	{
 		if (steep) 
 		{
-			drawPixel(y0, x0, color);
+			drawPixelInternal(y0, x0, color);
 		} 
 		else 
 		{
-			drawPixel(x0, y0, color);
+			drawPixelInternal(x0, y0, color);
 		}
 
 		err -= dy;
@@ -392,58 +365,115 @@ void S6D0154X::setTextSize(uint8_t s)
 void S6D0154X::drawChar(int16_t x, int16_t y, unsigned char c, 
 	uint16_t color, uint16_t bg, uint8_t size)
 {
-	if((x >= _width)            || // Clip right
-     (y >= _height)           || // Clip bottom
-     ((x + 6 * size - 1) < 0) || // Clip left
-     ((y + 8 * size - 1) < 0))   // Clip top
-    return;
+	if((x >= _width)             || // Clip right
+		(y >= _height)           || // Clip bottom
+		((x + 6 * size - 1) < 0) || // Clip left
+		((y + 8 * size - 1) < 0))   // Clip top
+	return;
 
-  for (int8_t i=0; i<6; i++ ) {
-    uint8_t line;
-    if (i == 5) 
-      line = 0x0;
-    else 
-      line = pgm_read_byte(font+(c*5)+i);
-    for (int8_t j = 0; j<8; j++) {
-      if (line & 0x1) {
-        if (size == 1) // default size
-          drawPixel(x+i, y+j, color);
-        else {  // big size
-			
-          fillRect(x+(i*size), y+(j*size), size, size, color);
-		  //drawRect(x+(i*size), y+(j*size), size, size, color);
-        } 
-      } else if (bg != color) {
-        if (size == 1) // default size
-          drawPixel(x+i, y+j, bg);
-        else {  // big size
-		
-          fillRect(x+i*size, y+j*size, size, size, bg);
-		  //drawRect(x+i*size, y+j*size, size, size, bg);
-        }
-      }
-      line >>= 1;
-    }
-  }
+	for (int8_t i=0; i<6; i++ ) 
+	{
+		uint8_t line;
+		if (i == 5) 
+			line = 0x0;
+		else 
+			line = pgm_read_byte(font+(c*5)+i);
 
+		for (int8_t j = 0; j<8; j++) 
+		{
+			if (line & 0x1) 
+			{
+				if (size == 1) // default size
+					drawPixelInternal(x+i, y+j, color);
+				else 
+				{  // big size
+					fillRect(x+(i*size), y+(j*size), size, size, color);
+				} 
+			} 
+			else if (bg != color) 
+			{
+				if (size == 1) // default size
+					drawPixelInternal(x+i, y+j, bg);
+				else 
+				{  // big size
+					fillRect(x+i*size, y+j*size, size, size, bg);
+				}
+			}
+			line >>= 1;
+		}
+	}
 }
 
 size_t S6D0154X::write(uint8_t c) 
 {
-  if (c == '\n') {
-    _cursor_y += _textsize*8;
-    _cursor_x  = 0;
-  } else if (c == '\r') {
-    // skip em
-  } else {
-    drawChar(_cursor_x, _cursor_y, c, _textcolor, _textbgcolor, _textsize);
-    _cursor_x += _textsize*6;
-    if (_wrap && (_cursor_x > (_width - _textsize*6))) {
-      _cursor_y += _textsize*8;
-      _cursor_x = 0;
-    }
-  }
+	if (c == '\n') 
+	{
+		_cursor_y += _textsize*8;
+		_cursor_x  = 0;
+	} 
+	else if (c == '\r') 
+	{
+		// skip em
+	} 
+	else 
+	{
+		drawChar(_cursor_x, _cursor_y, c, _textcolor, _textbgcolor, _textsize);
+		_cursor_x += _textsize*6;
+		if (_wrap && (_cursor_x > (_width - _textsize*6))) 
+		{
+			_cursor_y += _textsize*8;
+			_cursor_x = 0;
+		}
+	}
 
-  return 1;
+	return 1;
+}
+
+void S6D0154X::beginUpdate()
+{
+	if (!_inTransaction)
+	{
+		SPI.beginTransaction(*_spiSettings);
+		_inTransaction = true;
+	}
+}
+
+void S6D0154X::endUpdate()
+{
+	if (_inTransaction)
+	{
+		SPI.endTransaction();
+		_inTransaction = false;
+	}
+	
+}
+
+void S6D0154X::drawPixelInternal(int16_t x, int16_t y, uint16_t color)
+{
+	// Clip
+  	if((x < 0) || (y < 0) || (x >= _width) || (y >= _height)) return;
+
+    int16_t t;
+	switch(_rotation) 
+	{
+		case 1:
+			t = x;
+			x = TFTWIDTH  - 1 - y;
+			y = t;
+			break;
+		case 2:
+			x = TFTWIDTH  - 1 - x;
+			y = TFTHEIGHT - 1 - y;
+			break;
+		case 3:
+			t = x;
+			x = y;
+			y = TFTHEIGHT - 1 - t;
+		break;
+	}
+	
+    writeRegister16(0x0020, x);
+    writeRegister16(0x0021, y);
+    writeRegister16(0x0022, color);
 }
 
