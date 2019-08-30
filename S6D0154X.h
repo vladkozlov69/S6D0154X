@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include <Print.h>
 #include <SPI.h>
+#include "Adafruit_GFX.h"
+#include "glcdfont.c"
 
 #define   BLACK                0x0000                // 黑色：    0,   0,   0 //
 #define   BLUE                 0x001F                // 蓝色：    0,   0, 255 //
@@ -25,21 +27,15 @@
 #define TFTWIDTH   240
 #define TFTHEIGHT  320
 
-#define swap(a, b) { int16_t t = a; a = b; b = t; }
+//#define swap(a, b) { int16_t t = a; a = b; b = t; }
 
-class S6D0154X: public Print
+class S6D0154X: public Adafruit_GFX
 {
 private:
     SPISettings * _spiSettings;
     uint8_t _cs_pin;
     uint8_t _reset_pin;
     uint8_t _rotation;
-    int16_t _width;
-    int16_t _height;
-    int16_t _cursor_x, _cursor_y;
-    uint16_t _textcolor, _textbgcolor;
-    uint8_t _textsize;
-    boolean _wrap;
     boolean _inTransaction;
     void writeRegister16(uint16_t command, uint16_t data);
     void beginUpdate();
@@ -55,20 +51,9 @@ public:
     void drawFastVLine(int16_t x0, int16_t y0, int16_t h, uint16_t color);
     void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c);
     void fillScreen(uint16_t color);
-
-    void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
-    void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-    void setCursor(int16_t x, int16_t y);
-    void setTextColor(uint16_t c);
-    void setTextColor(uint16_t c, uint16_t bg);
-    void setTextSize(uint8_t s);
-    void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size);
-    virtual size_t write(uint8_t);
     void flood(uint16_t color, uint32_t len);
     void SPI_WriteComm(uint16_t CMD);
     void SPI_WriteData(uint16_t tem_data);
-    int16_t width() { return _width; };
-    int16_t height() { return _height; };
     SPISettings * spiSettings() { return _spiSettings; };
 };
 

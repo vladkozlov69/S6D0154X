@@ -1,21 +1,19 @@
 #include "S6D0154X.h"
-#include "Adafruit_GFX.h"
-#include "glcdfont.c"
 #ifdef __AVR__
  #include <avr/pgmspace.h>
 #else
  #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
 #endif
 
-S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin)
+S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin) : Adafruit_GFX(TFTWIDTH, TFTHEIGHT)
 {
     this->_cs_pin = cs_pin;
 	this->_reset_pin = reset_pin;
 	_rotation  = 0;
-  	_cursor_y  = _cursor_x    = 0;
-  	_textsize  = 1;
-  	_textcolor = _textbgcolor = 0xFFFF;
-  	_wrap      = true;
+  	// _cursor_y  = _cursor_x    = 0;
+  	// _textsize  = 1;
+  	// _textcolor = _textbgcolor = 0xFFFF;
+  	// _wrap      = true;
 	_inTransaction = false;
 }
 
@@ -276,157 +274,6 @@ void S6D0154X::SPI_WriteData(uint16_t data)
 	SPI.transfer(data>>8);
 	SPI.transfer(data);
 	digitalWrite(_cs_pin, HIGH);
-}
-
-// Bresenham's algorithm - thx wikpedia
-void S6D0154X::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
-{
-	int16_t steep = abs(y1 - y0) > abs(x1 - x0);
-
-	if (steep) 
-	{
-		swap(x0, y0);
-		swap(x1, y1);
-	}
-
-	if (x0 > x1) 
-	{
-		swap(x0, x1);
-		swap(y0, y1);
-	}
-
-	int16_t dx, dy;
-	dx = x1 - x0;
-	dy = abs(y1 - y0);
-
-	int16_t err = dx / 2;
-	int16_t ystep;
-
-	if (y0 < y1) 
-	{
-		ystep = 1;
-	} 
-	else 
-	{
-		ystep = -1;
-	}
-
-	for (; x0<=x1; x0++) 
-	{
-		if (steep) 
-		{
-			drawPixelInternal(y0, x0, color);
-		} 
-		else 
-		{
-			drawPixelInternal(x0, y0, color);
-		}
-
-		err -= dy;
-
-		if (err < 0) 
-		{
-			y0 += ystep;
-			err += dx;
-		}
-	}
-}
-
-void S6D0154X::drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
-{
-	drawFastHLine(x, y, w, color);
-	drawFastHLine(x, y+h-1, w, color);
-	drawFastVLine(x, y, h, color);
-	drawFastVLine(x+w-1, y, h, color);
-}
-
-void S6D0154X::setCursor(int16_t x, int16_t y)
-{
-	_cursor_x = x;
-	_cursor_y = y;
-}
-
-void S6D0154X::setTextColor(uint16_t c)
-{
-	_textcolor = c;
-}
-
-void S6D0154X::setTextColor(uint16_t c, uint16_t bg)
-{
-	_textcolor = c;
-	_textbgcolor = bg;
-}
-
-void S6D0154X::setTextSize(uint8_t s)
-{
-	_textsize = s;
-}
-
-void S6D0154X::drawChar(int16_t x, int16_t y, unsigned char c, 
-	uint16_t color, uint16_t bg, uint8_t size)
-{
-	if((x >= _width)             || // Clip right
-		(y >= _height)           || // Clip bottom
-		((x + 6 * size - 1) < 0) || // Clip left
-		((y + 8 * size - 1) < 0))   // Clip top
-	return;
-
-	for (int8_t i=0; i<6; i++ ) 
-	{
-		uint8_t line;
-		if (i == 5) 
-			line = 0x0;
-		else 
-			line = pgm_read_byte(font+(c*5)+i);
-
-		for (int8_t j = 0; j<8; j++) 
-		{
-			if (line & 0x1) 
-			{
-				if (size == 1) // default size
-					drawPixelInternal(x+i, y+j, color);
-				else 
-				{  // big size
-					fillRect(x+(i*size), y+(j*size), size, size, color);
-				} 
-			} 
-			else if (bg != color) 
-			{
-				if (size == 1) // default size
-					drawPixelInternal(x+i, y+j, bg);
-				else 
-				{  // big size
-					fillRect(x+i*size, y+j*size, size, size, bg);
-				}
-			}
-			line >>= 1;
-		}
-	}
-}
-
-size_t S6D0154X::write(uint8_t c) 
-{
-	if (c == '\n') 
-	{
-		_cursor_y += _textsize*8;
-		_cursor_x  = 0;
-	} 
-	else if (c == '\r') 
-	{
-		// skip em
-	} 
-	else 
-	{
-		drawChar(_cursor_x, _cursor_y, c, _textcolor, _textbgcolor, _textsize);
-		_cursor_x += _textsize*6;
-		if (_wrap && (_cursor_x > (_width - _textsize*6))) 
-		{
-			_cursor_y += _textsize*8;
-			_cursor_x = 0;
-		}
-	}
-
-	return 1;
 }
 
 void S6D0154X::beginUpdate()
