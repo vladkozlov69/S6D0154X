@@ -1,9 +1,5 @@
 #include "S6D0154X.h"
-#ifdef __AVR__
- #include <avr/pgmspace.h>
-#else
- #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
-#endif
+
 
 S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin) : Adafruit_GFX(TFTWIDTH, TFTHEIGHT)
 {
@@ -17,9 +13,9 @@ S6D0154X::S6D0154X(uint8_t cs_pin, uint8_t reset_pin) : Adafruit_GFX(TFTWIDTH, T
 	_inTransaction = false;
 }
 
-void S6D0154X::init(void)
+void S6D0154X::begin(uint32_t freq)
 {
-	_spiSettings = new SPISettings(8000000, MSBFIRST, SPI_MODE0);
+	_spiSettings = new SPISettings(freq, MSBFIRST, SPI_MODE0);
 	SPI.begin();
 
     pinMode(_cs_pin, OUTPUT);
@@ -31,7 +27,7 @@ void S6D0154X::init(void)
     delay(5);
     digitalWrite(_reset_pin, HIGH);
 
-	SPI.beginTransaction(*_spiSettings);
+	startWrite();
 	writeRegister16(0x11, 0x001A);
 	writeRegister16(0x12, 0x3121);
 	writeRegister16(0x13, 0x006C);
@@ -77,7 +73,7 @@ void S6D0154X::init(void)
 
 	writeRegister16(0x07,0x0013);/*  GRAM Address Set */
 	writeRegister16(0x07,0x0017);/*  Display Control  DISPLAY ON */
-   	SPI.endTransaction();
+   	endWrite();
 
    	setRotation(0);
 }
@@ -110,9 +106,9 @@ void S6D0154X::setRotation(uint8_t x)
 			break;
     }
 	
-	SPI.beginTransaction(*_spiSettings);
+	startWrite();
 	writeRegister16(0x0003, t); // MADCTL
-	SPI.endTransaction();
+	endWrite();
 	setAddrWindow(0, 0, _width - 1, _height - 1);
 }
 
@@ -162,7 +158,7 @@ void S6D0154X::setAddrWindow(int16_t x1, int16_t y1, int16_t x2, int16_t y2)
       break;
     }
 	
-	beginUpdate();
+	startWrite();
 	writeRegister16(0x37, x1); //HorizontalStartAddress
 	writeRegister16(0x36, x2); //HorizontalEndAddress
 	writeRegister16(0x39, y1); //VerticalStartAddress
@@ -170,16 +166,14 @@ void S6D0154X::setAddrWindow(int16_t x1, int16_t y1, int16_t x2, int16_t y2)
 	writeRegister16(0x20, x); //GRAM Address Set
 	writeRegister16(0x21, y);
 	writeRegister16(0x22, 0);
-	endUpdate();
+	endWrite();
   
 	digitalWrite(_cs_pin, HIGH);
 }
 
 void S6D0154X::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
-	beginUpdate();
 	drawPixelInternal(x, y, color);
-	endUpdate();
 }
 
 void S6D0154X::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
@@ -240,7 +234,7 @@ void S6D0154X::fillScreen(uint16_t color)
 void S6D0154X::flood(uint16_t color, uint32_t len)
 {
 	uint16_t internalColor = ~color;
-	SPI.beginTransaction(*_spiSettings);
+	startWrite();
 	SPI_WriteComm(0x0022);
     digitalWrite(_cs_pin, LOW);
     SPI.transfer(0x72);
@@ -249,7 +243,7 @@ void S6D0154X::flood(uint16_t color, uint32_t len)
         SPI.transfer16(internalColor);
     }
     digitalWrite(_cs_pin, HIGH);
-	SPI.endTransaction();
+	endWrite();
 }
 
 
@@ -264,8 +258,6 @@ void S6D0154X::SPI_WriteComm(uint16_t command)
 	digitalWrite(_cs_pin, LOW);
 	SPI.transfer(0x70);
 	SPI.transfer16(command);
-	// SPI.transfer(command>>8);
-	// SPI.transfer(command);
 	digitalWrite(_cs_pin, HIGH);
 }
 
@@ -274,12 +266,10 @@ void S6D0154X::SPI_WriteData(uint16_t data)
 	digitalWrite(_cs_pin, LOW);
 	SPI.transfer(0x72);
 	SPI.transfer16(data);
-	// SPI.transfer(data>>8);
-	// SPI.transfer(data);
 	digitalWrite(_cs_pin, HIGH);
 }
 
-void S6D0154X::beginUpdate()
+void S6D0154X::startWrite() 
 {
 	if (!_inTransaction)
 	{
@@ -288,14 +278,13 @@ void S6D0154X::beginUpdate()
 	}
 }
 
-void S6D0154X::endUpdate()
+void S6D0154X::endWrite() 
 {
 	if (_inTransaction)
 	{
 		SPI.endTransaction();
 		_inTransaction = false;
 	}
-	
 }
 
 void S6D0154X::drawPixelInternal(int16_t x, int16_t y, uint16_t color)
